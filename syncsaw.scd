@@ -77,10 +77,10 @@ plot { [
     });
 
     if(q.notNil,{
-        if(~debug, postln("freeing previous instance"));
+        if(~debug, {postln("freeing previous instance"); });
         q.value;
     },{
-        if(~debug, postln("not freeing previous instance"));
+        if(~debug, {postln("not freeing previous instance"); });
     });
 
     MIDIClient.init;
@@ -90,8 +90,7 @@ plot { [
     ~controls.put(\vsync, Bus.control(s, 1));
     ~controls.at(\vsync).set(0);
 
-
-    SynthDef(\CircuitSyncSaw, { |freq, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
+    SynthDef(\CircuitSyncSaw, { |freq, amp=0.1, gate=1, vsync=0|
         var signal;
         signal = SyncSaw.ar(freq, freq * (vsync/16 + 1));
         signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
@@ -107,9 +106,9 @@ plot { [
 
         ~releaseNote.value(num);
         ~notes[num] = Synth(\CircuitSyncSaw, [
-                \freq, num.midicps,
-                \amp, veloc * 0.00315,
-            ]);
+            \freq, num.midicps,
+            \amp, veloc * 0.00315,
+        ]);
         ~notes[num].map(\vsync, ~controls.at(\vsync));
     });
 
