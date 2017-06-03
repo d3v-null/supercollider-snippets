@@ -25,15 +25,16 @@ def main():
     parser.add_argument('--param', help="(optional) a parameter for the wave function", type=float, default=0.5)
     parser.add_argument('--amp', help="the amplitude of the wave function", type=float, default=0.9)
     parser.add_argument('--len', help="the length of the samele (seconds)", type=float, default=5.0)
+    parser.add_argument('--chan', help="the number of channels", type=int, default=2)
+    parser.add_argument('--swidth', help="the sample width (bytes)", type=int, default=2)
+    parser.add_argument('--srate', help="the sample rate (samples / second)", type=int, default=44100)
+
 
     args = parser.parse_args()
 
-    sample_rate = 44100
-    channels = 2
-    sig_amp = 32767
-    sample_len = int(sample_rate * args.len)
+    sig_amp = 2 ** (8 * args.swidth - 1) - 1
 
-    wave_name = "%s_%07.1f_%0.3f.wav" % (args.type, args.freq, args.param)
+    wave_name = "%s_f%07.1f_p%0.3f.wav" % (args.type, args.freq, args.param)
     wave_path = os.path.join(args.dir, wave_name)
 
     assert args.type in WAVE_TYPES, 'invalid wave type'
@@ -49,14 +50,16 @@ def main():
             pass
 
     wave_obj = wave.open(wave_path, 'w')
-    wave_params = (2, channels, sample_rate, 0, 'NONE', 'not compressed')
-    wave_obj.setparams(wave_params)
-    for i in range(sample_len):
-        seconds = i / sample_rate
+    wave_obj.setnchannels(args.chan)
+    wave_obj.setsampwidth(args.swidth)
+    wave_obj.setframerate(args.srate)
+
+    for i in range(int(args.srate * args.len)):
+        seconds = i / args.srate
         angle = 2 * math.pi * seconds * args.freq
         sig = args.amp * sig_amp * wave_func(angle, args.param)
         packed_signal = struct.pack('h', sig)
-        for c in range(channels):
+        for c in range(args.chan):
             wave_obj.writeframes(packed_signal)
 
 if __name__ == '__main__':
