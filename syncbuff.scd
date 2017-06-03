@@ -49,7 +49,7 @@ plot { [
 
     // Synth parameters
     ~oscs = 7; // number of oscillators in each synth
-    ~base = 2; // base used to calculate spectral density amplitudes
+    ~base = 2; // base used to calculate spectral deviation
 
     // midi handling helper functions
     ~releaseNote = {|note|
@@ -67,6 +67,50 @@ plot { [
     };
 
     q=nil;
+
+    // converts from oscillator number given oscs, to position on normal distribution
+    ~fnOscPosition = {|oscs, num| num.linlin(0, (oscs-1), -1 * (oscs-1)/2, (oscs-1)/2)};
+    // calculates value of normal distribution at position x given deviation d
+    ~fnNorm = {|x, d| exp(-1*x.squared/(d.squared * 2))/(d * sqrt(2pi))};
+    // calculates the deviation given a density
+    ~fnDeviation = {|density| ~base ** (density.linlin(0, 255, -2, 3));};
+)
+
+// density experiments
+(
+    var density, normals, densities;
+
+    // equally spaced oscillators about origin
+    postf("oscillator spacing test. ~oscs=%. %\n", ~oscs, Array.fill(~oscs, {|num| ~fnOscPosition.value(~oscs, num); }));
+
+    // normal pdf in python: exp(-x**2/2)/sqrt(2*pi)
+    // exp(-x**2/(dens**2 * 2)/(dens * sqrt(2*pi))
+    // exp(-x.squared/(dens.squared * 2)/(dens * sqrt(2*pi))
+    postf("norm test. norm(0,1) = %\n", ~fnNorm.value(0, 1));
+
+    postf("deviation test. deviation(0) = %\n", ~fnDeviation.value(0));
+
+    density = 1;
+    normals = Array.fill( ~oscs, {|num|
+        ~fnNorm.value(~fnOscPosition.value(~oscs, num), ~fnDeviation(density));
+    });
+
+    normals = Array.fill( ~oscs, {|num|
+        var x = ~fnOscPosition.value(~oscs, num);
+        ~fnNorm.value(x, d);
+    });
+    postf("normals test. ~oscs=%. %\n", ~oscs, normals);
+
+
+    densities = {|oscs, dens|
+        var normals = Array.fill( oscs, {|num|
+            var x = ~fnOscPosition.value(~oscs, num);
+            ~fnNorm.value(x, dens);
+        });
+        var total = normals.sum;
+        normals / total;
+    };
+    postf("densities test. ~oscs=%, d=%. %\n", ~oscs, d, densities.value(~oscs, d));
 )
 
 //initialize stuff
@@ -75,7 +119,7 @@ plot { [
 
     ~notes.do({|note, index|
         if(note.notNil,{
-            if(~debug,{ postf("freeing note %", index); });
+            if(~debug,{postf("freeing note %", index); });
             note.free;
         });
     });
@@ -84,20 +128,20 @@ plot { [
     });
 
     if(q.notNil,{
-        if(~debug, postln("freeing previous instance"));
+        if(~debug, {postln("freeing previous instance"); });
         q.value;
     },{
-        if(~debug, postln("not freeing previous instance"));
+        if(~debug, {postln("not freeing previous instance"); });
     });
 
     MIDIClient.init;
-
     MIDIIn.connectAll;
 
     ~controls.put(\vsync, Bus.control(s, 1));
-    ~controls.at(\vsync).set(0);
+    ~controls.put(\density, Bus.control(s, 1));
+    ~controls.put(\density_detune, Bus.control(s, 1));
 
-    SynthDef(\CircuitSyncBuffer, { |freq, bufnum, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
+    SynthDef(\CircuitSyncBuffer, { |freq, bufnum, amp=0.1, gate=1, vsync=0|
         // the rate to play the buffer
         var rate;
         // the trigger signal, out signal
@@ -105,7 +149,34 @@ plot { [
         trigger = Impulse.ar(freq);
         rate = BufRateScale.kr(bufnum) * freq * (vsync/16 + 1);
         signal = PlayBuf.ar( 1, bufnum, rate, trigger, 0, 1 );
+        signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
+        Out.ar(0, [signal, signal]);
+    }).add;
+
+    SynthDef(\CircuitSyncBufferDense, { |freq, bufnum, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
+        // the rate to play the buffer
+        var rate;
+        // the trigger signal, out signal
+        var trigger, signal;
+        // array of amplitudes distributed with normal function
+        var normals;
+        var signals_dense;
+
+        trigger = Impulse.ar(freq);
+        rate = BufRateScale.kr(bufnum) * freq * (vsync/16 + 1);
+
         // TODO: create multiple copies of this saw at different detunes
+        normals = Array.fill( ~oscs, {|num|
+            ~fnNorm.value(~fnOscPosition.value(~oscs, num), ~fnDeviation.value(density));
+        });
+        signals_dense = normals.collect({|normal, num|
+            var position, detune;
+            position = ~fnOscPosition.value(~oscs, num);
+            detune = density_detune * position * (2 ** (1/2));
+            PlayBuf.ar( 1, bufnum, rate * (1+detune), trigger, 0, 1) * normal / normals.sum;
+        });
+        signal = Mix.new(signals_dense);
+
         signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
         Out.ar(0, [signal, signal]);
     }).add;
@@ -118,12 +189,15 @@ plot { [
                         veloc, num, chan, src, vsyncval));
 
         ~releaseNote.value(num);
-        ~notes[num] = Synth(\CircuitSyncBuffer, [
+        /*~notes[num] = Synth(\CircuitSyncBuffer, [*/
+        ~notes[num] = Synth(\CircuitSyncBufferDense, [
                 \bufnum, ~buffer.bufnum,
                 \freq, num.midicps,
                 \amp, veloc * 0.00315,
             ]);
         ~notes[num].map(\vsync, ~controls.at(\vsync));
+        ~notes[num].map(\density, ~controls.at(\density));
+        ~notes[num].map(\density_detune, ~controls.at(\density_detune));
     });
 
     off = MIDIFunc.noteOff({ |veloc, num, chan, src|
@@ -135,9 +209,17 @@ plot { [
     cc = MIDIFunc.cc({ |value, num, chan, src|
         var vsync_val;
         if(~debug, postf("cc - num: %; val: %\n", num, value));
-        ~controls.at(\vsync).set(value);
+        if(num == 10, {
+            ~controls.at(\vsync).set(value);
+        });
+        if(num == 11, {
+            ~controls.at(\density).set(value);
+        });
+        if(num == 91, {
+            ~controls.at(\density_detune).set(value);
+        });
         vsync_val = ~getControl.value(\vsync);
-        if(~debug, postf("vsync_val is now: %\n", vsync_val));
+        /*if(~debug, postf("vsync_val is now: %\n", vsync_val));*/
     });
 
     q = { on.free; off.free; cc.free; };
