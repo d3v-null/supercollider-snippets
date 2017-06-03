@@ -50,9 +50,13 @@ q = nil;
 
     MIDIIn.connectAll;
 
-    ~notes = Array.newClear(128);    // array has one slot per possible MIDI note
+    // Notes is an array of synths for each possible MIDI note
+    ~notes = Array.newClear(128);
+    // Controls is a dictionary of busses for each synth parameter
     ~controls = Dictionary.new;
     ~controls.put(\vsync, Bus.control(s, 1));
+    // Buffer contains a 1Hz sample
+    ~buffer = Buffer.read(s, "samples/trisaw_00001.0_1.000.wav");
 
     releasefunction = {|index|
         if(~debug, postf("releasing %\n", index));
@@ -69,11 +73,17 @@ q = nil;
     };
 
     SynthDef(\CircuitSyncSaw, { |freq, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
-        var index;
-        var trigger = Impulse.ar(freq * (vsync/16 + 1))
         var signal;
-        postf("vsync val is: %\n", vsync);
         signal = SyncSaw.ar(freq, freq * (vsync/16 + 1) );
+        signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
+        Out.ar(0, signal);
+    }).add;
+
+    SynthDef(\CircuitSyncBuffer, { |freq, bufnum, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
+        var trigger, signal, rate;
+        trigger = Impulse.ar(freq * (vsync/16 + 1));
+        rate = BufRateScale.kr(bufnum) * freq;
+        signal = PlayBuf.ar( 1, bufnum, rate, trigger, 0, 1 );
         // TODO: create multiple copies of this saw at different detunes
         signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
         Out.ar(0, signal);
@@ -86,11 +96,15 @@ q = nil;
                         veloc, num, chan, src, vsyncval));
 
         releasefunction.value(num);
-
         ~notes[num] = Synth(\CircuitSyncSaw, [
                 \freq, num.midicps,
                 \amp, veloc * 0.00315,
             ]);
+        /*~notes[num] = Synth(\CircuitSyncBuffer, [
+                \bufnum, ~buffer.bufnum,
+                \freq, num.midicps,
+                \amp, veloc * 0.00315,
+            ]);*/
         ~notes[num].map(\vsync, ~controls.at(\vsync));
     });
 
