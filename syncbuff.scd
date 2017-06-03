@@ -43,6 +43,13 @@ plot { [
     // Controls is a dictionary of busses for each synth parameter
     ~controls = Dictionary.new;
     // Buffer contains a 1Hz sample
+    /*~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/trisaw_f00001.0_p1.000.wav");*/
+    /*~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/trisaw_f00001.0_p0.500.wav");*/
+    ~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/square_f00001.0_p0.500.wav");
+
+    // Synth parameters
+    ~oscs = 7; // number of oscillators in each synth
+    ~base = 2; // base used to calculate spectral density amplitudes
 
     // midi handling helper functions
     ~releaseNote = {|note|
@@ -90,10 +97,15 @@ plot { [
     ~controls.put(\vsync, Bus.control(s, 1));
     ~controls.at(\vsync).set(0);
 
-
-    SynthDef(\CircuitSyncSaw, { |freq, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
-        var signal;
-        signal = SyncSaw.ar(freq, freq * (vsync/16 + 1));
+    SynthDef(\CircuitSyncBuffer, { |freq, bufnum, amp=0.1, gate=1, vsync=0, density=0, density_detune=0|
+        // the rate to play the buffer
+        var rate;
+        // the trigger signal, out signal
+        var trigger, signal;
+        trigger = Impulse.ar(freq);
+        rate = BufRateScale.kr(bufnum) * freq * (vsync/16 + 1);
+        signal = PlayBuf.ar( 1, bufnum, rate, trigger, 0, 1 );
+        // TODO: create multiple copies of this saw at different detunes
         signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
         Out.ar(0, [signal, signal]);
     }).add;
@@ -106,7 +118,8 @@ plot { [
                         veloc, num, chan, src, vsyncval));
 
         ~releaseNote.value(num);
-        ~notes[num] = Synth(\CircuitSyncSaw, [
+        ~notes[num] = Synth(\CircuitSyncBuffer, [
+                \bufnum, ~buffer.bufnum,
                 \freq, num.midicps,
                 \amp, veloc * 0.00315,
             ]);
