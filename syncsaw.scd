@@ -56,7 +56,7 @@ q = nil;
     ~controls = Dictionary.new;
     ~controls.put(\vsync, Bus.control(s, 1));
     // Buffer contains a 1Hz sample
-    ~buffer = Buffer.read(s, "samples/trisaw_00001.0_1.000.wav");
+    ~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/trisaw_f00001.0_p1.000.wav");
 
     releasefunction = {|index|
         if(~debug, postf("releasing %\n", index));
@@ -96,15 +96,15 @@ q = nil;
                         veloc, num, chan, src, vsyncval));
 
         releasefunction.value(num);
-        ~notes[num] = Synth(\CircuitSyncSaw, [
-                \freq, num.midicps,
-                \amp, veloc * 0.00315,
-            ]);
-        /*~notes[num] = Synth(\CircuitSyncBuffer, [
-                \bufnum, ~buffer.bufnum,
+        /*~notes[num] = Synth(\CircuitSyncSaw, [
                 \freq, num.midicps,
                 \amp, veloc * 0.00315,
             ]);*/
+        ~notes[num] = Synth(\CircuitSyncBuffer, [
+                \bufnum, ~buffer.bufnum,
+                \freq, num.midicps,
+                \amp, veloc * 0.00315,
+            ]);
         ~notes[num].map(\vsync, ~controls.at(\vsync));
     });
 
