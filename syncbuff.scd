@@ -73,7 +73,7 @@ plot { [
     // calculates value of normal distribution at position x given deviation d
     ~fnNorm = {|x, d| exp(-1*x.squared/(d.squared * 2))/(d * sqrt(2pi))};
     // calculates the deviation given a density
-    ~fnDeviation = {|density| ~base ** (density.linlin(0, 255, -2, 3));};
+    ~fnDeviation = {|density| ~base ** (density.linlin(0, 127, -2, 3));};
 )
 
 // density experiments
@@ -92,15 +92,14 @@ plot { [
 
     density = 1;
     normals = Array.fill( ~oscs, {|num|
-        ~fnNorm.value(~fnOscPosition.value(~oscs, num), ~fnDeviation(density));
+        ~fnNorm.value(~fnOscPosition.value(~oscs, num), ~fnDeviation.value(density));
     });
 
     normals = Array.fill( ~oscs, {|num|
-        var x = ~fnOscPosition.value(~oscs, num);
-        ~fnNorm.value(x, d);
+        ~fnNorm.value(~fnOscPosition.value(~oscs, num), density);
     });
     postf("normals test. ~oscs=%. %\n", ~oscs, normals);
-
+)
 
     densities = {|oscs, dens|
         var normals = Array.fill( oscs, {|num|
@@ -147,7 +146,7 @@ plot { [
         // the trigger signal, out signal
         var trigger, signal;
         trigger = Impulse.ar(freq);
-        rate = BufRateScale.kr(bufnum) * freq * (vsync/16 + 1);
+        rate = BufRateScale.kr(bufnum) * freq * (vsync/8 + 1);
         signal = PlayBuf.ar( 1, bufnum, rate, trigger, 0, 1 );
         signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
         Out.ar(0, [signal, signal]);
@@ -169,13 +168,13 @@ plot { [
         normals = Array.fill( ~oscs, {|num|
             ~fnNorm.value(~fnOscPosition.value(~oscs, num), ~fnDeviation.value(density));
         });
-        signals_dense = normals.collect({|normal, num|
+        /*signals_dense = ;*/
+        signal = Mix.new(normals.collect({|normal, num|
             var position, detune;
             position = ~fnOscPosition.value(~oscs, num);
-            detune = density_detune * position * (2 ** (1/2));
+            detune = density_detune * position * (2 ** (1/2)) / 100;
             PlayBuf.ar( 1, bufnum, rate * (1+detune), trigger, 0, 1) * normal / normals.sum;
-        });
-        signal = Mix.new(signals_dense);
+        }));
 
         signal = signal * EnvGen.ar(Env.asr(0.005,1,0.1),gate,doneAction:2);
         Out.ar(0, [signal, signal]);
