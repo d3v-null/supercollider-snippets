@@ -45,7 +45,8 @@ plot { [
     // Buffer contains a 1Hz sample
     /*~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/trisaw_f00001.0_p1.000.wav");*/
     /*~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/trisaw_f00001.0_p0.500.wav");*/
-    ~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/square_f00001.0_p0.500.wav");
+    /*~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/square_f00001.0_p0.500.wav");*/
+    ~buffer = Buffer.read(s, "/Users/Derwent/GitHub/supercollider-snippets/samples/sin_f00001.0_p0.500.wav");
 
     // Synth parameters
     ~oscs = 7; // number of oscillators in each synth
@@ -76,7 +77,7 @@ plot { [
     ~fnDeviation = {|density| ~base ** (density.linlin(0, 127, -2, 3));};
 )
 
-// density experiments
+// function tests
 (
     var density, normals, densities;
 
@@ -99,7 +100,7 @@ plot { [
         ~fnNorm.value(~fnOscPosition.value(~oscs, num), density);
     });
     postf("normals test. ~oscs=%. %\n", ~oscs, normals);
-)
+
     densities = {|oscs, dens|
         var normals = Array.fill( oscs, {|num|
             ~fnNorm.value(~fnOscPosition.value(~oscs, num), density);
@@ -206,13 +207,13 @@ plot { [
     cc = MIDIFunc.cc({ |value, num, chan, src|
         var vsync_val;
         if(~debug, postf("cc - num: %; val: %\n", num, value));
-        if(num == 10, {
+        if(num == 80, {
             ~controls.at(\vsync).set(value);
         });
-        if(num == 11, {
+        if(num == 82, {
             ~controls.at(\density).set(value);
         });
-        if(num == 91, {
+        if(num == 84, {
             ~controls.at(\density_detune).set(value);
         });
         vsync_val = ~getControl.value(\vsync);
