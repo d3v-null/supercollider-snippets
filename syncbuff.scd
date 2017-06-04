@@ -100,11 +100,9 @@ plot { [
     });
     postf("normals test. ~oscs=%. %\n", ~oscs, normals);
 )
-
     densities = {|oscs, dens|
         var normals = Array.fill( oscs, {|num|
-            var x = ~fnOscPosition.value(~oscs, num);
-            ~fnNorm.value(x, dens);
+            ~fnNorm.value(~fnOscPosition.value(~oscs, num), density);
         });
         var total = normals.sum;
         normals / total;
